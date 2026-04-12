@@ -1,0 +1,6 @@
+node_modules/
+dist/
+.env
+*.log
+demo.mp4
+demo-compressed.mp4

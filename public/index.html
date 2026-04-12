@@ -1,0 +1,915 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SOL Balance — Adaptive Parallel</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+<style>
+  :root {
+    --bg: #F3EDDD;
+    --surface: #EAE4D3;
+    --surface-2: #E0DACB;
+    --border: #C8C2B3;
+    --text: #111111;
+    --text-dim: #555555;
+    --accent: #14f195;
+    --accent-dim: #14f19533;
+    --purple: #7733cc;
+    --purple-dim: #7733cc33;
+    --red: #cc2244;
+    --orange: #cc7700;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Outfit', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  .grain {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.03;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    z-index: 9999;
+  }
+
+  .container {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 24px 24px;
+  }
+
+  header {
+    text-align: center;
+    margin-bottom: 24px;
+  }
+
+  header h1 {
+    font-size: 1.6rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin-bottom: 6px;
+  }
+
+  header p {
+    font-size: 0.82rem;
+    color: var(--text-dim);
+    font-weight: 300;
+    letter-spacing: 0.04em;
+  }
+
+  .input-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 24px;
+  }
+
+  .input-row input {
+    flex: 1;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.82rem;
+    padding: 12px 16px;
+    border-radius: 8px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  .input-row input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-dim);
+  }
+
+  .input-row input::placeholder {
+    color: var(--text-dim);
+    font-family: 'Outfit', sans-serif;
+  }
+
+  .btn {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'Outfit', sans-serif;
+    font-size: 0.82rem;
+    font-weight: 500;
+    padding: 12px 20px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+    user-select: none;
+  }
+
+  .btn:hover:not(:disabled) {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: var(--accent-dim);
+  }
+
+  .btn:active:not(:disabled) { transform: scale(0.97); }
+
+  .btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  .btn-primary {
+    background: #111111;
+    color: #F3EDDD;
+    border-color: #111111;
+    font-weight: 600;
+  }
+
+  .btn-primary:hover:not(:disabled) {
+    background: #333333;
+    color: #F3EDDD;
+    border-color: #333333;
+  }
+
+  .chart-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 2px;
+    margin-bottom: 20px;
+    position: relative;
+    min-height: 380px;
+  }
+
+  #chart {
+    width: 100%;
+    height: 380px;
+    border-radius: 10px;
+    overflow: hidden;
+  }
+
+  .chart-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 380px;
+    color: var(--text-dim);
+    font-size: 0.85rem;
+    font-weight: 300;
+  }
+
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 8px;
+    margin-bottom: 20px;
+  }
+
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+    text-align: center;
+  }
+
+  .stat-card .label {
+    font-size: 0.68rem;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 4px;
+  }
+
+  .stat-card .value {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 1.1rem;
+    font-weight: 700;
+  }
+
+  .stat-card .value.accent { color: #0a8f5a; }
+  .stat-card .value.purple { color: var(--purple); }
+  .stat-card .value.orange { color: var(--orange); }
+  .capped-label { font-size: 0.7rem; color: var(--orange); font-weight: 600; margin-top: 2px; }
+
+  .rounds-table {
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    font-size: 0.78rem;
+  }
+
+  .rounds-table table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .rounds-table th {
+    background: var(--surface-2);
+    color: var(--text-dim);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-size: 0.68rem;
+    padding: 10px 12px;
+    text-align: right;
+  }
+
+  .rounds-table th:first-child { text-align: left; }
+
+  .rounds-table td {
+    padding: 8px 12px;
+    border-top: 1px solid var(--border);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    text-align: right;
+    color: var(--text-dim);
+  }
+
+  .rounds-table td:first-child {
+    text-align: left;
+    color: var(--text);
+    font-weight: 500;
+  }
+
+  .loading-overlay {
+    position: absolute;
+    inset: 0;
+    background: var(--surface);
+    border-radius: 10px;
+    opacity: 0.95;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    z-index: 10;
+  }
+
+  .spinner {
+    width: 32px;
+    height: 32px;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .loading-text {
+    font-size: 0.82rem;
+    color: var(--text-dim);
+  }
+
+  .cancel-btn {
+    margin-top: 4px;
+    padding: 5px 18px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--text-dim);
+    background: transparent;
+    border: 1.5px solid var(--border);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .cancel-btn:hover {
+    color: var(--accent);
+    border-color: var(--accent);
+  }
+
+  .error-msg {
+    background: #ff4d6a18;
+    border: 1px solid #ff4d6a44;
+    color: var(--red);
+    padding: 12px 16px;
+    border-radius: 8px;
+    font-size: 0.82rem;
+    margin-bottom: 16px;
+    display: none;
+  }
+
+  .tier-badge {
+    display: inline-block;
+    font-size: 0.62rem;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 4px;
+    letter-spacing: 0.04em;
+    font-family: 'JetBrains Mono', monospace;
+    background: rgba(0,0,0,0.08);
+    vertical-align: middle;
+    margin-left: 4px;
+  }
+
+  .validation-badge {
+    display: inline-block;
+    font-size: 0.68rem;
+    font-weight: 600;
+    padding: 3px 8px;
+    border-radius: 4px;
+    letter-spacing: 0.04em;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .validation-badge.pass {
+    background: var(--accent-dim);
+  }
+
+  .validation-badge.fail {
+    background: #ff4d6a22;
+    color: var(--red);
+  }
+
+  .chart-info {
+    position: absolute;
+    top: 10px;
+    left: 12px;
+    background: rgba(17, 17, 17, 0.75);
+    color: #F3EDDD;
+    font-size: 0.68rem;
+    font-family: 'JetBrains Mono', monospace;
+    padding: 4px 10px;
+    border-radius: 4px;
+    z-index: 5;
+    pointer-events: none;
+  }
+
+  .time-filters {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+  }
+
+  .time-filters button {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    font-weight: 500;
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s;
+    user-select: none;
+  }
+
+  .time-filters button:hover:not(:disabled) {
+    border-color: var(--accent);
+    color: var(--text);
+  }
+
+  .time-filters button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    pointer-events: none;
+  }
+
+  .time-filters button.active {
+    background: #111111;
+    color: #F3EDDD;
+    border-color: #111111;
+  }
+
+  .random-wrap {
+    position: relative;
+  }
+
+  .random-dropdown {
+    position: absolute;
+    top: calc(100% + 4px);
+    right: 0;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 4px;
+    display: flex;
+    gap: 3px;
+    z-index: 20;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    white-space: nowrap;
+  }
+
+  .random-dropdown button {
+    background: none;
+    border: 1px solid transparent;
+    color: var(--text-dim);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem;
+    font-weight: 500;
+    padding: 5px 8px;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-transform: uppercase;
+  }
+
+  .random-dropdown button:hover {
+    background: var(--accent-dim);
+    border-color: var(--accent);
+    color: var(--text);
+  }
+
+  .hidden { display: none !important; }
+
+  @media (max-width: 600px) {
+    .container { padding: 20px 16px; }
+    .input-row { flex-direction: column; }
+    .stats-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+<div class="grain"></div>
+<div class="container">
+  <header>
+    <h1>SOL Balance Over Time</h1>
+    <p>Adaptive parallel algorithm using Helius getTransactionsForAddress <span id="tierBadge"></span></p>
+  </header>
+
+  <div class="input-row">
+    <input type="text" id="addressInput" placeholder="Wallet address..." spellcheck="false" autocomplete="off">
+    <div class="random-wrap">
+      <button class="btn" id="randomBtn" title="Pick a preset wallet">Presets ▾</button>
+      <div class="random-dropdown hidden" id="randomDropdown">
+        <button data-size="xs">xs</button>
+        <button data-size="sm">sm</button>
+        <button data-size="md">md</button>
+        <button data-size="lg">lg</button>
+        <button data-size="xl">xl</button>
+        <button data-size="any">any</button>
+      </div>
+    </div>
+    <select id="algoSelect" title="Algorithm version" style="
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      padding: 8px 10px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--surface);
+      color: var(--text);
+      cursor: pointer;
+      outline: none;
+    ">
+      <option value="4" selected>algo-4 sig→queue</option>
+      <option value="3">algo-3 sig→full</option>
+      <option value="2">algo-2 c×7 drain</option>
+      <option value="1">algo-1 adaptive probe</option>
+    </select>
+    <button class="btn btn-primary" id="goBtn">Go</button>
+  </div>
+
+  <div class="time-filters" id="timeFilters">
+    <button data-period="1d" class="active">1D</button>
+    <button data-period="1w">1W</button>
+    <button data-period="15d">15D</button>
+    <button data-period="1m">1M</button>
+    <button data-period="6m">6M</button>
+    <button data-period="1y">1Y</button>
+    <button data-period="all">All</button>
+  </div>
+
+  <div class="error-msg" id="errorMsg"></div>
+
+  <div class="stats-grid hidden" id="statsGrid">
+    <div class="stat-card">
+      <div class="label">Response Time</div>
+      <div class="value accent" id="statTime">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Transactions</div>
+      <div class="value purple" id="statTxs">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">RPC Calls</div>
+      <div class="value orange" id="statCalls">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Current Balance</div>
+      <div class="value" id="statBalance">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Rounds</div>
+      <div class="value" id="statRounds">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Validation</div>
+      <div class="value" id="statValidation">—</div>
+    </div>
+  </div>
+
+  <div class="chart-wrap">
+    <div id="chart">
+      <div class="chart-empty" id="chartEmpty">Enter a wallet address to see its SOL balance history</div>
+    </div>
+    <div class="chart-info hidden" id="chartInfo"></div>
+    <div class="loading-overlay hidden" id="loading">
+      <div class="spinner"></div>
+      <div class="loading-text" id="loadingText">Probing transaction ranges...</div>
+      <button class="cancel-btn" id="cancelBtn">Cancel</button>
+    </div>
+  </div>
+
+  <div class="rounds-table hidden" id="roundsTable">
+    <table>
+      <thead>
+        <tr>
+          <th>Round</th>
+          <th>Duration</th>
+          <th>Calls</th>
+          <th>Probes</th>
+          <th>Fetches</th>
+          <th>Splits</th>
+          <th>Empty</th>
+        </tr>
+      </thead>
+      <tbody id="roundsBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+const addressInput = document.getElementById('addressInput');
+const randomBtn = document.getElementById('randomBtn');
+const goBtn = document.getElementById('goBtn');
+const errorMsg = document.getElementById('errorMsg');
+const statsGrid = document.getElementById('statsGrid');
+const chartEl = document.getElementById('chart');
+const chartEmpty = document.getElementById('chartEmpty');
+const loading = document.getElementById('loading');
+const loadingText = document.getElementById('loadingText');
+const cancelBtn = document.getElementById('cancelBtn');
+const roundsTable = document.getElementById('roundsTable');
+const roundsBody = document.getElementById('roundsBody');
+const chartInfo = document.getElementById('chartInfo');
+
+let chart = null;
+let areaSeries = null;
+let currentSlot = null;
+let activeFilter = '1d';
+let abortController = null;
+
+// ~2.5 slots/sec on Solana mainnet
+const SLOTS_PER_SECOND = 2.5;
+const PERIOD_SECONDS = {
+  '1d':  86400,
+  '1w':  86400 * 7,
+  '15d': 86400 * 15,
+  '1m':  86400 * 30,
+  '6m':  86400 * 180,
+  '1y':  86400 * 365,
+  'all': 0,
+};
+
+function getFromSlot(period) {
+  if (!currentSlot || period === 'all') return undefined;
+  const seconds = PERIOD_SECONDS[period] || 0;
+  if (!seconds) return undefined;
+  return Math.max(0, Math.floor(currentSlot - seconds * SLOTS_PER_SECOND));
+}
+
+function showError(msg) {
+  errorMsg.textContent = msg;
+  errorMsg.style.display = 'block';
+}
+
+function hideError() {
+  errorMsg.style.display = 'none';
+}
+
+function setLoading(on, text) {
+  loading.classList.toggle('hidden', !on);
+  if (text) loadingText.textContent = text;
+  goBtn.disabled = on;
+  randomBtn.disabled = on;
+  document.getElementById('algoSelect').disabled = on;
+  document.querySelectorAll('.time-filters button').forEach(b => b.disabled = on);
+}
+
+function formatDuration(ms) {
+  if (ms < 1000) return ms + 'ms';
+  return (ms / 1000).toFixed(2) + 's';
+}
+
+function formatSol(sol) {
+  if (sol >= 1000) return sol.toFixed(2);
+  if (sol >= 1) return sol.toFixed(4);
+  return sol.toFixed(9);
+}
+
+function initChart() {
+  if (chart) {
+    chart.remove();
+    chart = null;
+  }
+  chartEmpty.classList.add('hidden');
+
+  chart = LightweightCharts.createChart(chartEl, {
+    width: chartEl.clientWidth,
+    height: 380,
+    layout: {
+      background: { type: 'solid', color: '#EAE4D3' },
+      textColor: '#555555',
+      fontFamily: "'JetBrains Mono', monospace",
+      fontSize: 11,
+    },
+    grid: {
+      vertLines: { color: '#D5CFBF' },
+      horzLines: { color: '#D5CFBF' },
+    },
+    crosshair: {
+      mode: LightweightCharts.CrosshairMode.Magnet,
+      vertLine: { color: '#7733cc44', width: 1, style: 2 },
+      horzLine: { color: '#7733cc44', width: 1, style: 2 },
+    },
+    rightPriceScale: {
+      borderColor: '#C8C2B3',
+    },
+    timeScale: {
+      borderColor: '#C8C2B3',
+      timeVisible: true,
+    },
+    handleScale: { axisPressedMouseMove: true },
+    handleScroll: { vertTouchDrag: false },
+  });
+
+  areaSeries = chart.addAreaSeries({
+    topColor: '#14f19540',
+    bottomColor: '#14f19505',
+    lineColor: '#14f195',
+    lineWidth: 2,
+    priceFormat: { type: 'custom', formatter: (p) => formatSol(p) + ' SOL' },
+    crosshairMarkerRadius: 4,
+    crosshairMarkerBorderColor: '#14f195',
+    crosshairMarkerBackgroundColor: '#EAE4D3',
+  });
+
+  const ro = new ResizeObserver(() => {
+    if (chart) chart.applyOptions({ width: chartEl.clientWidth });
+  });
+  ro.observe(chartEl);
+}
+
+const MAX_CHART_POINTS = 1000;
+
+function renderChart(timeline) {
+  initChart();
+
+  // Sort by time/slot, then normalize to strictly increasing seconds.
+  // lightweight-charts requires unique ascending timestamps.
+  const sorted = timeline
+    .filter((p) => Number.isFinite(p.time) && Number.isFinite(p.balanceSol))
+    .map((p, i) => ({ time: Math.floor(p.time), slot: p.slot, value: p.balanceSol, i }))
+    .sort((a, b) => (a.time - b.time) || (a.slot - b.slot) || (a.i - b.i));
+
+  const all = [];
+  let lastTime = -1;
+  for (const p of sorted) {
+    const time = p.time <= lastTime ? lastTime + 1 : p.time;
+    all.push({ time, value: p.value });
+    lastTime = time;
+  }
+
+  const totalPoints = all.length;
+  const data = totalPoints > MAX_CHART_POINTS
+    ? all.slice(totalPoints - MAX_CHART_POINTS)
+    : all;
+
+  if (totalPoints > MAX_CHART_POINTS) {
+    chartInfo.textContent = `Showing latest ${MAX_CHART_POINTS.toLocaleString()} of ${totalPoints.toLocaleString()} data points`;
+    chartInfo.classList.remove('hidden');
+  } else {
+    chartInfo.classList.add('hidden');
+  }
+
+  if (data.length > 0) {
+    areaSeries.setData(data);
+    chart.timeScale().fitContent();
+  }
+}
+
+function renderStats(result) {
+  statsGrid.classList.remove('hidden');
+  // Clean up previous capped label if any
+  document.querySelectorAll('.capped-label').forEach(el => el.remove());
+  document.getElementById('statTime').textContent = formatDuration(result.totalDurationMs);
+  const txsEl = document.getElementById('statTxs');
+  txsEl.textContent = result.transactionCount.toLocaleString();
+  if (result.capped) {
+    txsEl.insertAdjacentHTML('afterend',
+      '<div class="capped-label">(capped)</div>');
+  }
+  document.getElementById('statCalls').textContent = result.totalCalls.toLocaleString();
+  document.getElementById('statBalance').textContent = formatSol(result.currentBalanceSol) + ' SOL';
+  document.getElementById('statRounds').textContent = result.roundStats.length;
+
+  let badge;
+  if (result.validation.valid) {
+    badge = '<span class="validation-badge pass">PASS</span>';
+  } else if (result.capped) {
+    badge = '<span class="validation-badge pass" title="Approximate — wallet was capped">~PASS</span>';
+  } else {
+    badge = '<span class="validation-badge fail">FAIL</span>';
+  }
+  document.getElementById('statValidation').innerHTML = badge;
+
+  // Rounds table
+  roundsTable.classList.remove('hidden');
+  roundsBody.innerHTML = '';
+  for (const rs of result.roundStats) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>Round ${rs.round}</td>
+      <td>${formatDuration(Math.round(rs.durationMs))}</td>
+      <td>${rs.callCount}</td>
+      <td>${rs.probes}</td>
+      <td>${rs.leafFetches}</td>
+      <td>${rs.splits}</td>
+      <td>${rs.empties}</td>
+    `;
+    roundsBody.appendChild(tr);
+  }
+}
+
+const RANDOM_WALLETS = {
+  xs: [
+    'ERKj6Kq7nU5LPgxknzXFAwG1RzUrQ1tmxA89KgZTy5Xn',
+    '49zbLGHRSUmL9HXjLjodBZTA4tZT2vgBRSX2jsE55Re1',
+  ],
+  sm: [
+    '7RXwsoQD6MzsUbwGR2fptPCpi9CFnSLdCYJckb4327as',
+    'BFXdmgRTSPaxH9nsa7PYFXz6YFu1MEBps6d962svZKxk',
+  ],
+  md: [
+    'Az1P8fRm5FKLPqJv4cMrzfjWtYBDNsg6EypZ5CctsdCR',
+    '3FpKm9iSie6ug3xcbSPAeTEDGuizEz9CVUyuHn63inXa',
+  ],
+  lg: [
+    'CRqRsrFrEsm4BxU5XP2boWoLds9u91KjkhKSQqdwmUh9',
+    '6gwTAyKVg1zH77JWhZceuHFXH3bJz8jaRyrYrHYaXuqz',
+  ],
+  xl: [
+    'HzrEstnLfzsijhaD6z5frkSE2vWZEH5EUfn3bU9swo1f',
+    'FLwV8tm3pL8pZj6d927VASzPrgW51Gf4nRJuTewrfega',
+  ],
+};
+
+const randomDropdown = document.getElementById('randomDropdown');
+
+function toggleRandomDropdown() {
+  randomDropdown.classList.toggle('hidden');
+}
+
+async function pickRandom(size) {
+  randomDropdown.classList.add('hidden');
+  randomBtn.disabled = true;
+  randomBtn.textContent = '...';
+
+  try {
+    if (size === 'any') {
+      const res = await fetch('/api/random-wallet');
+      const data = await res.json();
+      addressInput.value = data.address;
+    } else {
+      const list = RANDOM_WALLETS[size];
+      addressInput.value = list[Math.floor(Math.random() * list.length)];
+    }
+    randomBtn.textContent = 'Presets ▾';
+    runQuery();
+  } catch (e) {
+    showError('Failed to pick random wallet');
+    randomBtn.disabled = false;
+    randomBtn.textContent = 'Presets ▾';
+  }
+}
+
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.random-wrap')) {
+    randomDropdown.classList.add('hidden');
+  }
+});
+
+function clearResults() {
+  statsGrid.classList.add('hidden');
+  roundsTable.classList.add('hidden');
+  roundsBody.innerHTML = '';
+  chartInfo.classList.add('hidden');
+  if (chart) {
+    chart.remove();
+    chart = null;
+    areaSeries = null;
+  }
+  chartEmpty.classList.remove('hidden');
+}
+
+async function runQuery() {
+  const address = addressInput.value.trim();
+  if (!address) {
+    showError('Please enter a wallet address');
+    return;
+  }
+
+  if (abortController) abortController.abort();
+  abortController = new AbortController();
+  const { signal } = abortController;
+
+  hideError();
+  clearResults();
+  setLoading(true, 'Probing transaction ranges...');
+  let msgInterval = null;
+
+  try {
+    const startTime = performance.now();
+    msgInterval = setInterval(() => {
+      const elapsed = ((performance.now() - startTime) / 1000).toFixed(1);
+      loadingText.textContent = `Fetching transactions... ${elapsed}s`;
+    }, 200);
+
+    let url = `/api/balance-history?address=${encodeURIComponent(address)}`;
+    const algoVersion = document.getElementById('algoSelect').value;
+    url += `&algo=${algoVersion}`;
+    const fromSlot = getFromSlot(activeFilter);
+    if (fromSlot != null) url += `&from_slot=${fromSlot}`;
+
+    const res = await fetch(url, { signal });
+
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || `HTTP ${res.status}`);
+    }
+
+    const result = await res.json();
+    renderChart(result.timeline);
+    renderStats(result);
+
+    if (!result.validation.valid && !result.capped) {
+      showError(
+        `Validation failed: final balance is off by ${result.validation.discrepancyLamports} lamports ` +
+        `(${(result.validation.discrepancyLamports / 1e9).toFixed(9)} SOL)`
+      );
+    }
+  } catch (e) {
+    if (e.name === 'AbortError') return;
+    showError(e instanceof Error ? e.message : String(e));
+  } finally {
+    abortController = null;
+    if (msgInterval !== null) clearInterval(msgInterval);
+    setLoading(false);
+  }
+}
+
+// Load tier info and current slot on page load
+(async () => {
+  try {
+    const [tierRes, slotRes] = await Promise.all([
+      fetch('/api/tier'),
+      fetch('/api/current-slot'),
+    ]);
+    const tier = await tierRes.json();
+    if (tier?.tier) {
+      document.getElementById('tierBadge').innerHTML =
+        `<span class="tier-badge">${tier.tier.toUpperCase()} · ${tier.rps} rps · ${(tier.maxTransactions / 1000).toFixed(0)}K max</span>`;
+    }
+    const slotData = await slotRes.json();
+    if (slotData?.slot) currentSlot = slotData.slot;
+  } catch {}
+})();
+
+// Time filter buttons
+document.querySelectorAll('.time-filters button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.time-filters button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    activeFilter = btn.dataset.period;
+    if (addressInput.value.trim()) runQuery();
+  });
+});
+
+// Event listeners
+goBtn.addEventListener('click', runQuery);
+document.getElementById('algoSelect').addEventListener('change', () => {
+  if (addressInput.value.trim()) runQuery();
+});
+cancelBtn.addEventListener('click', () => {
+  if (abortController) abortController.abort();
+});
+randomBtn.addEventListener('click', toggleRandomDropdown);
+document.querySelectorAll('.random-dropdown button').forEach(btn => {
+  btn.addEventListener('click', () => pickRandom(btn.dataset.size));
+});
+addressInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') runQuery();
+});
+</script>
+</body>
+</html>

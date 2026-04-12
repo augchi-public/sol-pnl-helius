@@ -1,0 +1,23 @@
+announcing a mini solana dev weekend competition, $1,500 prize and bragging rights
+
+challenge: lowest latency algorithm for computing SOL PnL at runtime with no indexing and only RPC
+
+context: with existing solana RPC methods, you have getSignaturesForAddress and getTransaction
+
+the problem is gSFA only lets you traverse from recent -> old in one direction, so you are inherently capped on choice of algorithm
+
+with the new getTransactionsForAddress method however, you can start from start, end, middle, or any range you want and parallelize these calls to get 10x lower latencies
+
+the core challenge becomes "how do you search the set of transactions for an address the most efficiently given you do not know how sparse they are for a given wallet?"
+
+leave your submission as a DM or reply to this tweet as a gist or code sample and at the end of 2 days, I will run all the algorithms against each other for a set of addresses ranging from busy, sparse, and periodic. winner will be based on lowest avg latency
+
+---
+
+AI use encouraged
+
+docs for the method: https://www.helius.dev/docs/rpc/gettransactionsforaddress
+
+---
+
+to make it less annoying, by SOL PnL i really mean SOL balance over time. does not need USDC values
