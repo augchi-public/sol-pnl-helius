@@ -14,6 +14,7 @@ import {
   getCallCount,
   resetCallCount,
   estimateDensity,
+  getRetryStats,
 } from "./rpc.js";
 
 export { computeSolBalanceOverTimeV3v2 };
@@ -268,6 +269,8 @@ export interface AlgorithmResult {
   totalCalls: number;
   totalDurationMs: number;
   capped: boolean;
+  retries: number;
+  retryTimeMs: number;
 }
 
 async function computeSolBalanceOverTimeV3v2(
@@ -304,6 +307,7 @@ async function computeSolBalanceOverTimeV3v2(
       totalCalls: getCallCount(),
       totalDurationMs: performance.now() - overallStart,
       capped: false,
+      ...getRetryStats(),
     };
   }
 
@@ -322,6 +326,7 @@ async function computeSolBalanceOverTimeV3v2(
       totalCalls: getCallCount(),
       totalDurationMs: performance.now() - overallStart,
       capped: false,
+      ...getRetryStats(),
     };
   }
 
@@ -366,6 +371,7 @@ async function computeSolBalanceOverTimeV3v2(
       totalCalls: getCallCount(),
       totalDurationMs: performance.now() - overallStart,
       capped: false,
+      ...getRetryStats(),
     };
   }
 
@@ -410,6 +416,7 @@ async function computeSolBalanceOverTimeV3v2(
       totalCalls: getCallCount(),
       totalDurationMs: performance.now() - overallStart,
       capped: false,
+      ...getRetryStats(),
     };
   }
 
@@ -542,6 +549,7 @@ async function computeSolBalanceOverTimeV3v2(
     capped,
     totalCalls: getCallCount(),
     totalDurationMs: Math.round(performance.now() - overallStart),
+    ...getRetryStats(),
   });
 
   return {
@@ -551,5 +559,6 @@ async function computeSolBalanceOverTimeV3v2(
     totalCalls: getCallCount(),
     totalDurationMs: performance.now() - overallStart,
     capped,
+    ...getRetryStats(),
   };
 }

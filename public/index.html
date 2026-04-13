@@ -461,8 +461,8 @@
       cursor: pointer;
       outline: none;
     ">
-      <option value="4" selected>algo-4 sig→queue</option>
-      <option value="3">algo-3 sig→full</option>
+      <option value="4">algo-4 sig→queue</option>
+      <option value="3" selected>algo-3 sig→full</option>
       <option value="2">algo-2 c×7 drain</option>
       <option value="1">algo-1 adaptive probe</option>
     </select>
@@ -700,9 +700,11 @@ function renderChart(timeline) {
 
 function renderStats(result) {
   statsGrid.classList.remove('hidden');
-  // Clean up previous capped label if any
-  document.querySelectorAll('.capped-label').forEach(el => el.remove());
+  // Clean up previous capped/retry labels
+  document.querySelectorAll('.capped-label, .retry-label').forEach(el => el.remove());
+
   document.getElementById('statTime').textContent = formatDuration(result.totalDurationMs);
+
   const txsEl = document.getElementById('statTxs');
   txsEl.textContent = result.transactionCount.toLocaleString();
   if (result.capped) {
@@ -722,6 +724,21 @@ function renderStats(result) {
     badge = '<span class="validation-badge fail">FAIL</span>';
   }
   document.getElementById('statValidation').innerHTML = badge;
+
+  // Retry warning
+  const existingRetryWarn = document.getElementById('retryWarning');
+  if (existingRetryWarn) existingRetryWarn.remove();
+  if (result.retries > 0) {
+    const warn = document.createElement('div');
+    warn.id = 'retryWarning';
+    warn.className = 'error-msg';
+    warn.style.display = 'block';
+    warn.style.background = '#ff4d6a18';
+    warn.style.borderColor = '#ff4d6a44';
+    warn.style.color = 'var(--red)';
+    warn.textContent = `\u26A0 ${result.retries} RPC ${result.retries === 1 ? 'retry' : 'retries'} (~${formatDuration(result.retryTimeMs)} in backoff). Time above is inflated by RPC errors — not representative of algorithm performance.`;
+    statsGrid.parentNode.insertBefore(warn, statsGrid.nextSibling);
+  }
 
   // Rounds table
   roundsTable.classList.remove('hidden');
@@ -804,6 +821,8 @@ function clearResults() {
   roundsTable.classList.add('hidden');
   roundsBody.innerHTML = '';
   chartInfo.classList.add('hidden');
+  const retryWarn = document.getElementById('retryWarning');
+  if (retryWarn) retryWarn.remove();
   if (chart) {
     chart.remove();
     chart = null;

@@ -14,6 +14,7 @@ import {
   getCallCount,
   resetCallCount,
   estimateDensity,
+  getRetryStats,
 } from "./rpc.js";
 
 export { computeSolBalanceOverTimeV2 };
@@ -202,6 +203,8 @@ export interface AlgorithmResult {
   totalCalls: number;
   totalDurationMs: number;
   capped: boolean;
+  retries: number;
+  retryTimeMs: number;
 }
 
 async function computeSolBalanceOverTimeV2(
@@ -241,6 +244,7 @@ async function computeSolBalanceOverTimeV2(
       totalCalls: getCallCount(),
       totalDurationMs: performance.now() - overallStart,
       capped: false,
+      ...getRetryStats(),
     };
   }
 
@@ -259,6 +263,7 @@ async function computeSolBalanceOverTimeV2(
       totalCalls: getCallCount(),
       totalDurationMs: performance.now() - overallStart,
       capped: false,
+      ...getRetryStats(),
     };
   }
 
@@ -305,6 +310,7 @@ async function computeSolBalanceOverTimeV2(
       capped: false,
       totalCalls: getCallCount(),
       totalDurationMs: Math.round(performance.now() - overallStart),
+      ...getRetryStats(),
     });
 
     return {
@@ -314,6 +320,7 @@ async function computeSolBalanceOverTimeV2(
       totalCalls: getCallCount(),
       totalDurationMs: performance.now() - overallStart,
       capped: false,
+      ...getRetryStats(),
     };
   }
 
@@ -347,6 +354,7 @@ async function computeSolBalanceOverTimeV2(
       capped: false,
       totalCalls: getCallCount(),
       totalDurationMs: Math.round(performance.now() - overallStart),
+      ...getRetryStats(),
     });
 
     return {
@@ -356,6 +364,7 @@ async function computeSolBalanceOverTimeV2(
       totalCalls: getCallCount(),
       totalDurationMs: performance.now() - overallStart,
       capped: false,
+      ...getRetryStats(),
     };
   }
 
@@ -450,6 +459,7 @@ async function computeSolBalanceOverTimeV2(
     capped,
     totalCalls: getCallCount(),
     totalDurationMs: Math.round(performance.now() - overallStart),
+    ...getRetryStats(),
   });
 
   return {
@@ -459,5 +469,6 @@ async function computeSolBalanceOverTimeV2(
     totalCalls: getCallCount(),
     totalDurationMs: performance.now() - overallStart,
     capped,
+    ...getRetryStats(),
   };
 }

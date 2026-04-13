@@ -181,9 +181,9 @@ async function handleApi(
         ? await computeSolBalanceOverTime(config)
         : algoParam === "2"
           ? await computeSolBalanceOverTimeV2(config)
-          : algoParam === "3"
-            ? await computeSolBalanceOverTimeV3(config)
-            : await computeSolBalanceOverTimeV3v2(config);
+          : algoParam === "4"
+            ? await computeSolBalanceOverTimeV3v2(config)
+            : await computeSolBalanceOverTimeV3(config);
       const timeline = reconstructBalance(
         result.transactions,
         result.currentBalance,
@@ -205,6 +205,8 @@ async function handleApi(
           roundStats: result.roundStats,
           totalCalls: result.totalCalls,
           totalDurationMs: Math.round(result.totalDurationMs),
+          retries: result.retries,
+          retryTimeMs: result.retryTimeMs,
           timeline: timeline.map((p) => ({
             time: p.blockTime ?? Math.floor(p.slot / 2.5),
             slot: p.slot,

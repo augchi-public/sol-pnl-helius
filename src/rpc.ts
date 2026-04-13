@@ -9,13 +9,21 @@ import type {
 import { debugLog } from "./logger.js";
 
 let globalCallCount = 0;
+let globalRetryCount = 0;
+let globalRetryTimeMs = 0;
 
 export function resetCallCount(): void {
   globalCallCount = 0;
+  globalRetryCount = 0;
+  globalRetryTimeMs = 0;
 }
 
 export function getCallCount(): number {
   return globalCallCount;
+}
+
+export function getRetryStats(): { retries: number; retryTimeMs: number } {
+  return { retries: globalRetryCount, retryTimeMs: Math.round(globalRetryTimeMs) };
 }
 
 // ── Low-level JSON-RPC transport ──
@@ -223,6 +231,8 @@ async function withRetry<T>(
         } else {
           delay = baseDelayMs * 2 ** attempt + Math.random() * 100;
         }
+        globalRetryCount++;
+        globalRetryTimeMs += delay;
         debugLog("rpc", "retry scheduled", {
           attempt,
           delayMs: Math.round(delay),

@@ -15,6 +15,7 @@ import {
   getCallCount,
   resetCallCount,
   estimateDensity,
+  getRetryStats,
 } from "./rpc.js";
 import { debugLog } from "./logger.js";
 
@@ -232,6 +233,8 @@ export interface AlgorithmResult {
   totalCalls: number;
   totalDurationMs: number;
   capped: boolean;
+  retries: number;
+  retryTimeMs: number;
 }
 
 export async function computeSolBalanceOverTime(
@@ -271,6 +274,7 @@ export async function computeSolBalanceOverTime(
       totalCalls: getCallCount(),
       totalDurationMs: performance.now() - overallStart,
       capped: false,
+      ...getRetryStats(),
     };
   }
 
@@ -289,6 +293,7 @@ export async function computeSolBalanceOverTime(
       totalCalls: getCallCount(),
       totalDurationMs: performance.now() - overallStart,
       capped: false,
+      ...getRetryStats(),
     };
   }
 
@@ -335,6 +340,7 @@ export async function computeSolBalanceOverTime(
       capped: false,
       totalCalls: getCallCount(),
       totalDurationMs: Math.round(performance.now() - overallStart),
+      ...getRetryStats(),
     });
 
     return {
@@ -344,6 +350,7 @@ export async function computeSolBalanceOverTime(
       totalCalls: getCallCount(),
       totalDurationMs: performance.now() - overallStart,
       capped: false,
+      ...getRetryStats(),
     };
   }
 
@@ -377,6 +384,7 @@ export async function computeSolBalanceOverTime(
       capped: false,
       totalCalls: getCallCount(),
       totalDurationMs: Math.round(performance.now() - overallStart),
+      ...getRetryStats(),
     });
 
     return {
@@ -386,6 +394,7 @@ export async function computeSolBalanceOverTime(
       totalCalls: getCallCount(),
       totalDurationMs: performance.now() - overallStart,
       capped: false,
+      ...getRetryStats(),
     };
   }
 
@@ -635,6 +644,7 @@ export async function computeSolBalanceOverTime(
     capped,
     totalCalls: getCallCount(),
     totalDurationMs: Math.round(performance.now() - overallStart),
+    ...getRetryStats(),
   });
 
   return {
@@ -644,5 +654,6 @@ export async function computeSolBalanceOverTime(
     totalCalls: getCallCount(),
     totalDurationMs: performance.now() - overallStart,
     capped,
+    ...getRetryStats(),
   };
 }

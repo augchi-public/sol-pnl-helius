@@ -33,7 +33,7 @@ function parseArgs(): {
   let splitFactor = 6;
   let concurrency = 0;
   let jsonOutput = false;
-  let algo: 1 | 2 | 3 | 4 = 4;
+  let algo: 1 | 2 | 3 | 4 = 3;
   let fromSlot: number | undefined;
   let toSlot: number | undefined;
 
@@ -51,7 +51,7 @@ function parseArgs(): {
       toSlot = parseInt(args[++i], 10);
     } else if (arg === "--algo" && args[i + 1]) {
       const v = parseInt(args[++i], 10);
-      algo = (v >= 1 && v <= 4) ? v as 1 | 2 | 3 | 4 : 4;
+      algo = (v >= 1 && v <= 4) ? v as 1 | 2 | 3 | 4 : 3;
     } else if (arg === "--json") {
       jsonOutput = true;
     } else if (!arg.startsWith("--")) {
@@ -102,7 +102,7 @@ async function main(): Promise<void> {
     3: "algo-3 (sig→full)",
     4: "algo-4 (sig→queue)",
   };
-  const algoLabel = algoLabels[algo] ?? algoLabels[4];
+  const algoLabel = algoLabels[algo] ?? algoLabels[3];
 
   if (!jsonOutput) {
     console.log(`\n  Tier: ${tier.tier.toUpperCase()} (${tier.rps} rps)\n`);
@@ -146,6 +146,8 @@ async function main(): Promise<void> {
           roundStats: result.roundStats,
           totalCalls: result.totalCalls,
           totalDurationMs: Math.round(result.totalDurationMs),
+          retries: result.retries,
+          retryTimeMs: result.retryTimeMs,
           timeline: timeline.map((p) => ({
             slot: p.slot,
             blockTime: p.blockTime,
@@ -176,8 +178,11 @@ async function main(): Promise<void> {
   console.log(
     "─────────────────────────────────────────────────────",
   );
+  const timeStr = result.retries > 0
+    ? `${Math.round(result.totalDurationMs)}ms  ⚠ ${result.retries} ${result.retries === 1 ? 'retry' : 'retries'} (~${Math.round(result.retryTimeMs)}ms in backoff — time is inflated)`
+    : `${Math.round(result.totalDurationMs)}ms`;
   console.log(
-    `  Total:  ${Math.round(result.totalDurationMs)}ms | ${result.totalCalls} RPC calls`,
+    `  Total:  ${timeStr} | ${result.totalCalls} RPC calls`,
   );
   console.log(
     `  Transactions found: ${result.transactions.length}`,

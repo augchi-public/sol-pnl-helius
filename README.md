@@ -45,7 +45,7 @@ Options:
 - `--concurrency N` — override max concurrent requests
 - `--from-slot N` — only scan transactions from this slot onwards
 - `--to-slot N` — only scan transactions up to this slot
-- `--algo 1|2|3|4` — algorithm version (default: 4)
+- `--algo 1|2|3|4` — algorithm version (default: 3)
 - `--json` — output results as JSON
 
 ### Web UI
@@ -57,7 +57,7 @@ export $(cat .env | xargs) && npm run serve
 Opens at `http://localhost:3000`. Features:
 
 - Wallet address input with preset wallets (xs/sm/md/lg/xl sizes) and random pump.fun wallet picker
-- Algorithm selector: algo-4 (default), algo-3, algo-2, algo-1
+- Algorithm selector: algo-3 (default), algo-4, algo-2, algo-1
 - Time filter buttons (1D, 1W, 15D, 1M, 6M, 1Y, All) using slot-based filtering — defaults to 1D
 - Interactive SOL balance chart (latest 1K data points when truncated)
 - Per-round stats table, validation badge, and tier info
@@ -94,9 +94,45 @@ For large wallets (1000+ txs, no time filter), a **multi-point density estimatio
 5. Filter out zero-delta transactions
 6. Validate reconstructed starting balance
 
-### algo-4: Sig Sweep → Queue Fetch (default)
+### algo-3: Sig Sweep → Targeted Full Fetch (default)
 
-Builds on algo-3's two-phase design but replaces the static Phase 2 with a dynamic async work queue. Workers pull ranges from a shared queue; when a fetch returns a full page (100 txs), the worker enqueues a child work item for the remaining range. Hot slots automatically fall back to pagination token continuation.
+The default algorithm. Two clean phases with predictable dispatch patterns — sweeps signatures first, then fetches full transactions in precisely-sized ranges. Simpler and more stable than algo-4's dynamic queue, with equivalent performance on most wallets.
+
+```
+Large wallet (≥1000 txs)
+        |
+   multi-point density
+   estimate (4 samples)
+        |
+   +----+----+
+   |         |
+ capped    uncapped
+   |         |
+ direct   Phase 1: parallel sig sweep
+ capped     (197 chunks × 1000 sigs/call,
+ fetch       paginated with server tokens)
+   |            |
+ return   Phase 2: targeted full fetch
+            (balanced ranges of ~97 sigs each,
+             static parallelMap)
+               |
+            return
+```
+
+**Phase 1 — Parallel sig sweep:** Splits the full slot range into `concurrency` chunks and sweeps all signatures with proper pagination token forwarding.
+
+**Phase 2 — Targeted full fetch:** Groups the known sig slots into ranges of ~97 sigs each using `buildBalancedRanges`. Each range targets ≤100 txs, so nearly every full-fetch call returns a single page. On rare "hot slots" (many txs in one slot), a range may slightly exceed 100 txs and paginate internally — but this is uncommon and handled transparently.
+
+The two key constants (shared with algo-4) are derived from Helius API limits:
+
+- **197 concurrency** = 200 RPS (Business plan) − 3 headroom for retry capacity
+- **97 sigs per chunk** = 100 max txs per gTFA full-mode response − 3 headroom (covers most slots; hot slots with many txs in a single slot may still paginate)
+
+**Call count formula:** `3 + 3 + ⌈txs/1000⌉ + ⌈txs/97⌉`
+
+### algo-4: Sig Sweep → Queue Fetch
+
+Builds on algo-3's two-phase design but replaces Phase 2 with a dynamic async work queue. Workers pull ranges from a shared queue; when a fetch returns a full page (100 txs), the worker enqueues a child work item for the remaining range. Hot slots automatically fall back to pagination token continuation.
 
 ```
 Large wallet (≥1000 txs)
@@ -119,9 +155,9 @@ Large wallet (≥1000 txs)
             return
 ```
 
-**Phase 1 — Parallel sig sweep:** Same as algo-3. Splits the full slot range into `concurrency` chunks and sweeps all signatures with proper pagination token forwarding.
+**Phase 1 — Parallel sig sweep:** Same as algo-3.
 
-**Phase 2 — Queue-based full fetch:** Initial ranges are built from sig slots (~97 sigs each, same as algo-3). But instead of static `parallelMap`, ranges are fed into an `AsyncQueue`. Each worker:
+**Phase 2 — Queue-based full fetch:** Initial ranges are built from sig slots (~97 sigs each). Ranges are fed into an `AsyncQueue`. Each worker:
 1. Pulls a range from the queue
 2. Fetches full transactions (gTFA full mode, 100/call)
 3. If the page is full (100 txs returned), builds a child work item:
@@ -129,20 +165,7 @@ Large wallet (≥1000 txs)
    - **Hot slot (no slot progress):** continues with the server's `paginationToken`
 4. Enqueues the child and immediately pulls the next item
 
-This means workers are never idle — dense ranges dynamically spawn more work while sparse ranges complete fast and the worker moves on.
-
-**Call count formula:** `3 + 3 + ⌈txs/1000⌉ + ⌈txs/97⌉` (3 bounds + 3 density probes + sig sweep + full fetch; fewer wasted calls on uneven distributions)
-
-### algo-3: Sig Sweep → Targeted Full Fetch
-
-Same Phase 1 as algo-4. Phase 2 uses static `buildBalancedRanges` + `parallelMap` instead of the queue. Slightly simpler but can waste calls on uneven density.
-
-**Phase 2 — Targeted full fetch:** Groups the known sig slots into ranges of ~97 sigs each using `buildBalancedRanges`. Each range targets ≤100 txs, so nearly every full-fetch call returns a single page. On rare "hot slots" (many txs in one slot), a range may slightly exceed 100 txs and paginate internally — but this is uncommon and handled transparently.
-
-The two key constants (shared with algo-4) are derived from Helius API limits:
-
-- **197 concurrency** = 200 RPS (Business plan) − 3 headroom for retry capacity
-- **97 sigs per chunk** = 100 max txs per gTFA full-mode response − 3 headroom (covers most slots; hot slots with many txs in a single slot may still paginate)
+Workers are never idle — dense ranges dynamically spawn more work while sparse ranges complete fast. The dynamic dispatch pattern can create burstier RPC traffic compared to algo-3's static approach, which may trigger more transient connection errors under load.
 
 **Call count formula:** `3 + 3 + ⌈txs/1000⌉ + ⌈txs/97⌉`
 
