@@ -11,8 +11,11 @@
     "smoke": "tsx src/smoke.ts"
   },
   "devDependencies": {
-    "typescript": "^5.4",
+    "@types/node": "^20",
     "tsx": "^4.7",
-    "@types/node": "^20"
+    "typescript": "^5.4"
+  },
+  "dependencies": {
+    "undici": "^7.24.8"
   }
 }

@@ -7,7 +7,7 @@ import { computeSolBalanceOverTimeV2 } from "./algorithm2.js";
 import { computeSolBalanceOverTimeV3 } from "./algorithm3.js";
 import { computeSolBalanceOverTimeV3v2 } from "./algorithm3v2.js";
 import { reconstructBalance, validateBalance } from "./balance.js";
-import { detectTier, initRateLimiter, CancelledError, type TierConfig } from "./rpc.js";
+import { detectTier, initRateLimiter, prewarm, CancelledError, type TierConfig } from "./rpc.js";
 import { debugLog } from "./logger.js";
 import type { AlgorithmConfig } from "./types.js";
 
@@ -177,6 +177,7 @@ async function handleApi(
     };
 
     try {
+      await prewarm(RPC_URL);
       const result = algoParam === "1"
         ? await computeSolBalanceOverTime(config)
         : algoParam === "2"
@@ -262,6 +263,7 @@ async function handleApi(
 async function main() {
   tierConfig = detectTier();
   initRateLimiter(tierConfig.rps);
+  await prewarm(RPC_URL);
   console.log(`\n  Tier: ${tierConfig.tier.toUpperCase()} (${tierConfig.rps} rps)`);
   console.log(`  → concurrency: ${tierConfig.concurrency}, max txs: ${tierConfig.maxTransactions.toLocaleString()}`);
   console.log(`  → set HELIUS_TIER env to override (default: developer)\n`);

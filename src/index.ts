@@ -3,7 +3,7 @@ import { computeSolBalanceOverTimeV2 } from "./algorithm2.js";
 import { computeSolBalanceOverTimeV3 } from "./algorithm3.js";
 import { computeSolBalanceOverTimeV3v2 } from "./algorithm3v2.js";
 import { reconstructBalance, validateBalance } from "./balance.js";
-import { detectTier, initRateLimiter } from "./rpc.js";
+import { detectTier, initRateLimiter, prewarm } from "./rpc.js";
 import type { AlgorithmConfig } from "./types.js";
 
 function loadRpcUrl(): string {
@@ -117,6 +117,8 @@ async function main(): Promise<void> {
     console.log(`RPC:         ${rpcUrl.replace(/api-key=.*/, "api-key=***")}`);
     console.log(`─────────────────────────────────────────────────────\n`);
   }
+
+  await prewarm(rpcUrl);
 
   const result = algo === 1
     ? await computeSolBalanceOverTime(config)

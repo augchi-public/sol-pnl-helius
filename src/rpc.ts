@@ -7,6 +7,14 @@ import type {
   SlotRange,
 } from "./types.js";
 import { debugLog } from "./logger.js";
+import { Agent, setGlobalDispatcher } from "undici";
+
+setGlobalDispatcher(new Agent({
+  connections: 128,
+  keepAliveTimeout: 60_000,
+  keepAliveMaxTimeout: 60_000,
+  pipelining: 1,
+}));
 
 let globalCallCount = 0;
 let globalRetryCount = 0;
@@ -58,11 +66,15 @@ async function rpcPost<T>(
   const started = performance.now();
   debugLog("rpc", "dispatch request", { method: request.method });
 
+  const fetchSignal = signal
+    ? AbortSignal.any([signal, AbortSignal.timeout(3_500)])
+    : AbortSignal.timeout(3_500);
+
   const res = await fetch(rpcUrl, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(request),
-    signal,
+    signal: fetchSignal,
   });
 
   if (res.status === 429) {
@@ -209,8 +221,8 @@ export async function parallelMap<A, B>(
 
 async function withRetry<T>(
   fn: () => Promise<T>,
-  maxRetries = 5,
-  baseDelayMs = 300,
+  maxRetries = 2,
+  baseDelayMs = 200,
   signal?: AbortSignal,
 ): Promise<T> {
   let lastErr: unknown;
@@ -246,6 +258,26 @@ async function withRetry<T>(
     }
   }
   throw lastErr;
+}
+
+// ── Connection pool prewarm ──
+
+export async function prewarm(rpcUrl: string, sockets = 32): Promise<void> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 3_000);
+  try {
+    await Promise.all(
+      Array.from({ length: sockets }, (_, i) =>
+        rpcPost(
+          rpcUrl,
+          { jsonrpc: "2.0", id: -1 - i, method: "getHealth", params: [] },
+          controller.signal,
+        ).catch(() => undefined),
+      ),
+    );
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 // ── Rate-limit tier detection ──
@@ -455,6 +487,7 @@ export async function batchGetTransaction(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(batch),
+      signal: AbortSignal.timeout(3_500),
     });
 
     if (res.status === 429) {
